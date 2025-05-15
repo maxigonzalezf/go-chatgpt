@@ -146,3 +146,126 @@
             fmt.Println(c()) // 1
             fmt.Println(c()) // 2
 
+3. STRUCTS Y METODOS
+    En Go no hay clases ni objetos como en Java o Python, pero si hay structs y metodos,
+    que permiten encapsular datos y comportamiento de forma muy poderosa
+
+    3.1 STRUCT
+        Es un conjunto de campos nombrados que agrupan datos relacionados, parecido a una "clase" en otros lenguajes
+            Definicion:
+                type Persona struct { // define un nuevo tipo Persona
+                    Nombre string
+                    Edad int
+                    Activo bool // cada campo tiene su propio tipo
+                }
+
+            Crear y usar instancias:
+                p1 := Persona {
+                    Nombre: "Ana",
+                    Edad: 36,
+                    Activo: true,
+                }
+
+                p2 := Persona{"Luis", 25, false}
+
+                fmt.Println(p1.Nombre)
+                p2.Edad = 26
+
+            Metodos asociados:
+                Metodo con receptor por valor:
+                    func (p Persona) Saludar() { // trabaja con copia de p
+                        fmt.Printf("Hola, soy %s y tengo %d años\n", p.Nombre, p.Edad)
+                    }
+
+                Metodo con receptor por puntero:
+                    func (p *Persona) CumplirAnios() {
+                        p.Edad++ // modifica la instancia original
+                    }
+
+            Composicion en lugar de herencia:
+                Go no tiene herencia de clases, pero puedes componer structs incluyendo uno dentro de otro
+                    type Direccion struct {
+                        Calle string
+                        Ciudad string
+                    }
+
+                    type Empleado struct {
+                        Persona      // embedding: todos los campos y metodos de Persona
+                        ID     string
+                        Direccion    // embedding anidado
+                    }
+
+                    e := Empleado {
+                        Persona: Persona {Nombre: "Mara", Edad: 28, Activo: true},
+                        ID: "EMP001",
+                        Direccion: Direccion {Calle: "Av. Siempreviva", Ciudad: "Springfield"},
+                    }
+                    fmt.Println(e.Nombre) // Mara
+                    fmt.Println(e.Ciudad) // Springfield
+
+                La composicion (embedding) promueve la reutilizacion de datos y comportamientos, clave en clean arquitectures
+
+4. INTERFACES Y POLIMORFISMO
+    4.1 INTERFAZ
+        Es un conjunto de metodos. Define comportamientos sin implementar la logica. Cualquier tipo que provea esos metodos, implementa la interfaz de forma implicita
+            Definicion:
+                type Describible interface {
+                    Describir() string
+                }
+                // Describible exige que el tipo que la implemente tenga un metodo Describir()
+            
+            Implementacion implicita:
+                No hace falta declarar implements o similar. Si un tipo tiene los metodos requeridos, se convierte automaticamente en implementador de la interfaz
+                    type Persona struct {
+                        Nombre string
+                    }
+
+                    func (p Persona) Describir() string {
+                        return "Persona: " + p.Nombre
+                    }
+
+                    // Persona implementa Describible sin nada mas:
+                    var d Describible = Persona {Nombre: "Ana"}
+                    fmt.Println(d.Describir()) // "Persona: Ana"
+
+            Uso de interfaces:
+                Permiten desacoplar codigo. Podemos escribir funciones que trabajen con cualquier tipo que implemente la interfaz
+                    func Mostrar(d Describible) {
+                        fmt.Println(d.Describir())
+                    }
+
+                    Mostrar(Persona{"Luis"})
+                    // Mostrar funciona con Persona o con cualquier otro tipo que implemente Describir()
+            
+            Interfaces comunes en la biblioteca estandar:
+                error: type error interface { Error() string }
+                fmt.Stringer: type Stringer interface { String() string }
+
+                Cualquier tipo con metodo String() string se formatea con fmt
+            
+            Interface vacia y type assertion:
+                Interface vacia "interface{}": puede contener cualquier valor
+                    var v interface{}
+                    v = 42
+                    v = "texto"
+                    v = Persona{"Maria"}
+                
+                Type assertion: para extraer valor concreto de "interface{}"
+                    var v interface{} = "hola"
+                    s := v.(string)   // s es string, "hola"
+                    n, ok := v.(int)  // ok=false, porque v no es int
+            
+            Slices de interfaces:
+                Podes tener colecciones de objetos heterogeneos que implementen la misma interfaz
+                    var describibles []Describible
+                    describibles = append(describibles, Persona{"Ana"})
+                    describibles = append(describibles, OtroTipo{})
+                    for _, d := range describibles {
+                        fmt.Println(d.Describir())
+                    }
+            
+            Conceptos clave:
+                Implicito: solo se necesita tener los metodos para implementarla
+                Polimorfismo: multiples tipos pueden implementar la misma interfaz
+                Desacoplamiento: el codigo solo depende de la interfaz, no de implementaciones concretas
+                Vacia(interface{}): util pero se pierde tipado
