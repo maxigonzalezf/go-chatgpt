@@ -269,3 +269,110 @@
                 Polimorfismo: multiples tipos pueden implementar la misma interfaz
                 Desacoplamiento: el codigo solo depende de la interfaz, no de implementaciones concretas
                 Vacia(interface{}): util pero se pierde tipado
+
+5. TESTING
+    Package testing
+        - Los tests van en archivos *_test.go junto al codigo que se quiere probar (mismo package)
+        - Cada funcion de test debe empezar con Test y recibir (t *testing.T)
+        - Se ejecutan con go test ./... (ejecuta todas las tests)
+
+    Convencion de nombres
+        - Codigo en pago.go -> tests en pago_test.go
+        - Funcion Pagar -> test TestPagar
+        - Funcion ProcesarPago -> test TestProcesarPago
+
+    Aserciones manuales
+        - No hay framework integrado, se usa if + t.Errorf
+            if got != want {
+                t.Errorf("Pagar() = %v, want %v", got, want) // marca el test como fallido y muestra el mensaje
+            }
+    
+    Table-driven tests
+        - Muy comun cuando se tienen varios escenarios. Se define una tabla de casos con entrada y salida esperada,
+        luego se itera:
+            tests := []struct{
+                name  string
+                fondos float64
+                monto  float64 // valores involucrados en la funcion
+                wantOk bool // resultado esperado de retorno
+            }{
+                {"suficiente", 100, 50, true},
+                {"insuficiente", 30, 50, false},
+            }
+            for _, tc := range tests {
+                t.Run(tc.name, func(t *testing.T) {
+                    // test…
+                })
+            }
+    
+    Mocks basados en interfaces
+        - Para testear funciones que reciben una interfaz, creamos un stub que implemente la interfaz,
+        capturamos llamadas y devolvemos el comportamiento que deseamos
+            // Mock simple. Simulamos un MedioDePago y registramos como fue llamado
+            type PagoFake struct {
+                llamadoCon float64
+                okReturn bool
+            }
+            // Simula el cobro: guarda el monto y devuelve okReturn
+            func (p *PagoFake) Pagar(monto float64) bool {
+                p.llamadoCon = monto // se guarda el monto con que se llamo
+                return p.okReturn // valor que queremos que Pagar() devuelva
+            }
+            func TestProcesarPago(t *testing.T) {
+                // Preparamos el mock
+                fake := &PagoFake{OK: true}
+                // Llamamos a la funcion a testear
+                ProcesarPago(fake, 123.45)
+                
+                // Verificamos que Pagar recibio el monto correcto
+                if fake.LlamadoCon != 123.45 {
+                    t.Errorf("Esperaba que Pagar se llamara con 123.45, ¡vino %f!", fake.LlamadoCon)
+                }
+            }
+    
+    Injecting dependencies
+        - Las funciones deben recibir sus dependencias (repos, procesadores, etc) como parametros
+
+6. PRINCIPIOS SOLID Y DDD
+
+    6.1 PRINCIPIOS SOLID
+        
+        SRP - Single Responsibility Principle
+            Un modulo o clase debe tener una unica razon para cambiar.
+            En Go, cada paquete o struct debe ocuparse de una sola responsabilidad
+                
+                // ¿Mala práctica? Un mismo struct que valida datos y también accede a la BD:
+                type UsuarioService struct { /* ... */ }
+                func (s *UsuarioService) Validar(u Usuario) error { /* ... */ }
+                func (s *UsuarioService) GuardarEnBD(u Usuario) error { /* ... */ }
+
+                //Mejor separar en dos tipos:
+                type UsuarioValidator struct { /* ... */ }
+                func (v *UsuarioValidator) Validar(u Usuario) error { /* ... */ }
+
+                type UsuarioRepository interface { Save(Usuario) error /* ... */ }
+        
+        OCP - Open/Closed Principle
+            El codigo debe estar abierto para extension pero cerrado para modificacion.
+            Con interfaces en Go, se pueden añadir nuevas implementaciones sin tocar codigo existente
+
+        LSP - Liskov Substitution Principle
+            Los tipos derivados deben poder sustituir a los base sin alterar el correcto funcionamiento del programa
+            En Go, cualquier implementacion de una interfaz debe comportarse como se espera por el consumidor
+        
+        ISP - Interface Segregation Principle
+            Las interfaces deben ser especificas y pequeñas. Mejor varias interfaces pequeñas que una gigante
+
+        DIP - Dependency Inversion Principle
+            Depende de abstracciones (interfaces), no de implementaciones concretas (mocks y repos)
+        
+    6.2 DOMAIN-DRIVEN DESIGN (DDD)
+
+        Es una metodologia para diseñar software centrado en el dominio de negocio
+
+            - ENTIDADES: objetos con identidad propia y ciclo de vida. Ej: Usuario con su ID
+            - VALUE OBJECTS: objetos inmutables definidos por sus atributos, sin identidad propia. Ej: Dinero{Moneda: "USD", Cantidad: 100}
+            - AGREGADO: conjunto de entidades y objetos de valor que forman una unidad de consistencia. Ej: Pedido con sus LineasDePedido
+            - REPOSITORIO: abstraccion para acceder a colecciones de agregados. Ej: PedidoRepository con metodos Save, FindByID
+            - SERVICIOS DE DOMINIO: logica de negocio que no encaja naturalmente en una entidad o value object. Ej: servicio de calculo de descuentos
+            - FACTORIES: crean agregados garantizando la validez de invariantes            
