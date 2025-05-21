@@ -376,3 +376,63 @@
             - REPOSITORIO: abstraccion para acceder a colecciones de agregados. Ej: PedidoRepository con metodos Save, FindByID
             - SERVICIOS DE DOMINIO: logica de negocio que no encaja naturalmente en una entidad o value object. Ej: servicio de calculo de descuentos
             - FACTORIES: crean agregados garantizando la validez de invariantes            
+
+7 CONCEPTOS DE ARQUITECTURA HEXAGONAL (PORTS & ADAPTERS)
+
+    La Arquitectura Hexagonal (tambien llamada Ports & Adapters) propone aislar el nucleo del dominio (logica de negocio)
+    de las dependencias exteriores (bdd, interfaces de usuario, servicios externos) mediante puertos (interfaces) y adaptadores (implementaciones de esas interfaces)
+
+    7.1 MOTIVACION
+        - DESACOPLAMIENTO: el dominio no depende de librerias o frameworks externos
+        - TESTABILIDAD: la logica principal se prueba sin necesidad de infraestructura real
+        - FLEXIBILIDAD: cambiar la bdd o el canal de comunicacion (CLI, HTTP, mensajeria) sin tocar el dominio
+        - MANTENIBILIDAD: cada pieza tiene responsabilidad unica y limites claros
+    
+    7.2 COMPONENTES CLAVE
+        - DOMINIO: Entidades, Value Objects y reglas de negocio puras
+        - PORTS: Interfaces que define el dominio para interactuar con el exterior (entrada/salida)
+        - ADAPTERS: Implementaciones concretas de los ports (repos en BD, controladores HTTP, etc)
+        - APPLICATION: Casos de uso o servicios de aplicacion que orquestan el dominio
+
+        Visualmente seria un hexagono con el dominio en el centro, y cada cara es un port; de cada cara sale un adapter concreto
+    
+    7.3 PORTS DE ENTRADA Y SALIDA
+        - ENTRADA (driven/inbound): lo que recibe la app desde el exterior (ej. controlador HTTP invocando un caso de uso)
+            type PedidoRepository interface {
+                Save(p Pedido) error
+                FindByID(id string) (Pedido, error)
+            }
+            Adapters de salida: RepositorioSQL implementa PedidoRepository con SQL
+                      RepositorioMemoria (implementacion en memoria para tests)
+
+        - SALIDA (driving/outbound): lo que el dominio necesita llamar en el exterior (ej. repositorio, cliente HTTP a un servicio externo)
+            type CrearPedidoUseCase interface {
+                Ejecutar(input CrearPedidoInput) (CrearPedidoOutput, error)
+            }
+            Adapters de entrada: controlador HTTP que lee JSON, llama al caso de uso y devuelve JSON
+                                 CLI que parsea flags y muestra resultados por consola
+        
+    7.4 FLUJO DE DEPENDENCIAS
+        1 - Inbound adapter (entrada) recibe la solicitud (ej. peticion HTTP)
+        2 - Llama al caso de uso (interactor) pasando DTOs
+        3 - El caso de uso invoca al dominio (entidades, servicios de dominio)
+        4 - Cuando necesita persistir o consultar, usa un puerto de salida (interfaz)
+        5 - El puerto de salida esta implementado por un outbound adapter (BD, API externa)
+        6 - El resultado regresa por la misma cadena hasta el adaptador de entrada, que lo traduce a la respuesta al usuario
+
+        REGLA DE DEPENDENCIA: las dependencias siempre apuntan hacia ADENTRO; el dominio no conoce ni depende de adaptadores
+    
+    7.5 ESTRUCTURA TIPICA DE CARPETAS EN GO
+        /cmd/miapp/         <- punto de entrada (main.go)
+        /internal/
+            /application/   <- casos de uso (interactors)
+        /domain/            <- entidades, V.O., interfaces (ports)
+        /infrastructure/    <- adaptadores externos (DB, mensajersia)
+        /interfaces/        <- adaptadores de entrada (HTTP handlers, CLI)
+        /pkg/               <- (opcional) librerias exportables
+
+    7.6 VENTAJAS PRINCIPALES
+        - ESCALABILIDAD DEL CODIGO: añadir nuevas interfaces o adaptadores sin reescribir el dominio
+        - FACIL TESTING: el dominio y casos de uso se prueban aisladamente con mocks
+        - LEGIBILIDAD: la organizacion refleja el flujo y limites claros
+        - SUSTITUCION DE IMPLEMENTACIONES: cambiar de MySQL a Mongo por ej., solo implica nuevos adaptadores
