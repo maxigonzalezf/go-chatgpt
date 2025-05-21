@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/maxigonzalezf/go-chatgpt/Ej7-microservicio-pedidos/internal/application/dto"
 	"github.com/maxigonzalezf/go-chatgpt/Ej7-microservicio-pedidos/internal/application/usecase"
 	"github.com/maxigonzalezf/go-chatgpt/Ej7-microservicio-pedidos/internal/infrastructure/persistence"
 )
@@ -20,7 +21,7 @@ func TestCrearPedidoHandler_Success(t *testing.T) {
 	h := CrearPedidoHandler(&uc) // inyectamos el repo en CrearPedidoUseCase
 
 	// 2. Crea el body JSON de la petición POST
-	input := usecase.CrearPedidoInput{
+	input := dto.CrearPedidoInput{
 		Cliente: "Mara",
 		Monto:   123.45,
 		Moneda:  "USD",
@@ -45,7 +46,7 @@ func TestCrearPedidoHandler_Success(t *testing.T) {
 
 	// 6. Parsea el response body
 	body, _ := io.ReadAll(rr.Body)
-	var out usecase.CrearPedidoOutput
+	var out dto.CrearPedidoOutput
 	if err := json.Unmarshal(body, &out); err != nil {
 		t.Fatalf("error unmarshaling response: %v\nbody: %s", err, string(body))
 	}
@@ -123,7 +124,7 @@ func TestCrearPedidoHandler_BadRequest_LogicalError(t *testing.T) {
 	h := CrearPedidoHandler(&uc)
 
 	// 1. Payload valido como JSON pero con monto no permitido (<0)
-	payload := usecase.CrearPedidoInput{
+	payload := dto.CrearPedidoInput{
 		Cliente: "Test", Monto: -10, Moneda: "USD",
 	}
 	buf := new(bytes.Buffer)

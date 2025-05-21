@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/maxigonzalezf/go-chatgpt/Ej7-microservicio-pedidos/internal/application/dto"
 	"github.com/maxigonzalezf/go-chatgpt/Ej7-microservicio-pedidos/internal/domain"
 )
 
@@ -32,7 +33,7 @@ func TestCrearPedido_Ejecutar(t *testing.T) {
 	repo := &RepoFake{}
 	uc := CrearPedidoUseCase{Repo: repo}
 
-	in := CrearPedidoInput{Cliente: "Mara", Monto: 123.45, Moneda: "USD"}
+	in := dto.CrearPedidoInput{Cliente: "Mara", Monto: 123.45, Moneda: "USD"}
 	out, err := uc.Ejecutar(in)
 	if err != nil {
 		t.Fatalf("no esperaba error, pero lo tuve: %v", err)
@@ -51,7 +52,7 @@ func TestCrearPedido_Ejecutar(t *testing.T) {
 
 func TestCrearPedido_MontoNegativo(t *testing.T) {
 	uc := CrearPedidoUseCase{Repo: &RepoFake{}}
-	_, err := uc.Ejecutar(CrearPedidoInput{Cliente: "Mara", Monto:  -5, Moneda: "USD"})
+	_, err := uc.Ejecutar(dto.CrearPedidoInput{Cliente: "Mara", Monto:  -5, Moneda: "USD"})
 	if err == nil || !strings.Contains(err.Error(), "debe ingresar un monto correcto") {
 		t.Errorf("esperaba error de monto invalido, pero obtuve: %v", err)
 	}

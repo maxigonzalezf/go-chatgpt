@@ -4,29 +4,19 @@ package usecase
 import (
 	"fmt"
 
-	"github.com/maxigonzalezf/go-chatgpt/Ej7-microservicio-pedidos/internal/domain"
 	"github.com/google/uuid"
+	"github.com/maxigonzalezf/go-chatgpt/Ej7-microservicio-pedidos/internal/application/dto"
+	"github.com/maxigonzalezf/go-chatgpt/Ej7-microservicio-pedidos/internal/domain"
 )
-
-type CrearPedidoInput struct {
-	Cliente string
-	Monto float64
-	Moneda string
-}
-
-type CrearPedidoOutput struct {
-	ID string
-	Total domain.Dinero
-}
 
 type CrearPedidoUseCase struct {
 	Repo domain.PedidoRepository
 }
 
-func (uc *CrearPedidoUseCase) Ejecutar(in CrearPedidoInput) (CrearPedidoOutput, error) {
+func (uc *CrearPedidoUseCase) Ejecutar(in dto.CrearPedidoInput) (dto.CrearPedidoOutput, error) {
 	// 1. Validar input
 	if in.Monto < 0 {
-		return CrearPedidoOutput{}, fmt.Errorf("debe ingresar un monto correcto")
+		return dto.CrearPedidoOutput{}, fmt.Errorf("debe ingresar un monto correcto")
 	}
 	// 2. Construir domain.Dinero
 	total := domain.Dinero {
@@ -41,10 +31,10 @@ func (uc *CrearPedidoUseCase) Ejecutar(in CrearPedidoInput) (CrearPedidoOutput, 
 	}
 	// 4. Repo.Save(pedido)
 	if err := uc.Repo.Save(p); err != nil {
-		return CrearPedidoOutput{}, err
+		return dto.CrearPedidoOutput{}, err
 	}
 	// 5. Devolver output (DTO de salida)
-	out := CrearPedidoOutput {
+	out := dto.CrearPedidoOutput {
 		ID: p.ID,
 		Total: p.Total,
 	}

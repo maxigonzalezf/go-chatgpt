@@ -5,12 +5,13 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/maxigonzalezf/go-chatgpt/Ej7-microservicio-pedidos/internal/application/dto"
 	"github.com/maxigonzalezf/go-chatgpt/Ej7-microservicio-pedidos/internal/application/usecase"
 )
 
 func CrearPedidoHandler(uc *usecase.CrearPedidoUseCase) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var input usecase.CrearPedidoInput
+		var input dto.CrearPedidoInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 			http.Error(w, "formato de JSON inválido", http.StatusBadRequest)
 			return
