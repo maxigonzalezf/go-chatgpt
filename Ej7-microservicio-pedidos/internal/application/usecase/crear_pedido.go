@@ -25,7 +25,7 @@ type CrearPedidoUseCase struct {
 
 func (uc *CrearPedidoUseCase) Ejecutar(in CrearPedidoInput) (CrearPedidoOutput, error) {
 	// 1. Validar input
-	if in.Monto <= 0 {
+	if in.Monto < 0 {
 		return CrearPedidoOutput{}, fmt.Errorf("debe ingresar un monto correcto")
 	}
 	// 2. Construir domain.Dinero

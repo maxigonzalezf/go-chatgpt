@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/maxigonzalezf/go-chatgpt/Ej7-microservicio-pedidos/internal/application/usecase"
@@ -16,9 +17,9 @@ func TestCrearPedidoHandler_Success(t *testing.T) {
 	// 1. Prepara repo y usecase
 	repo := persistence.NewPedidoRepoMemoria()
 	uc := usecase.CrearPedidoUseCase{Repo: repo}
-	h := CrearPedidoHandler(&uc)
+	h := CrearPedidoHandler(&uc) // inyectamos el repo en CrearPedidoUseCase
 
-	// 2. Crea el body JSON de la petición
+	// 2. Crea el body JSON de la petición POST
 	input := usecase.CrearPedidoInput{
 		Cliente: "Mara",
 		Monto:   123.45,
@@ -32,7 +33,7 @@ func TestCrearPedidoHandler_Success(t *testing.T) {
 	// 3. Construye la petición y el recorder
 	req := httptest.NewRequest(http.MethodPost, "/pedidos", buf)
 	req.Header.Set("Content-Type", "application/json")
-	rr := httptest.NewRecorder()
+	rr := httptest.NewRecorder() // intercepta lo que el handler escribiria a http.ResponseWriter
 
 	// 4. Ejecuta el handler
 	h(rr, req)
@@ -40,13 +41,13 @@ func TestCrearPedidoHandler_Success(t *testing.T) {
 	// 5. Comprueba el status code
 	if rr.Code != http.StatusCreated {
 		t.Errorf("status = %d; want %d", rr.Code, http.StatusCreated)
-	}
+	} // aseguramos que devuelva 201 Created
 
 	// 6. Parsea el response body
 	body, _ := io.ReadAll(rr.Body)
 	var out usecase.CrearPedidoOutput
 	if err := json.Unmarshal(body, &out); err != nil {
-		t.Fatalf("error unmarshaling response: %v", err)
+		t.Fatalf("error unmarshaling response: %v\nbody: %s", err, string(body))
 	}
 
 	// 7. Verifica contenido del DTO
@@ -91,3 +92,56 @@ Chequeo de persistencia
 
 Con esto cubrís un test de integración ligero que valida todo el flujo desde HTTP hasta dominio y repo en memoria.
 */
+
+func TestCrearPedidoHandler_BadRequest_InvalidJSON(t *testing.T) {
+	repo := persistence.NewPedidoRepoMemoria()
+	uc := usecase.CrearPedidoUseCase{Repo: repo}
+	h := CrearPedidoHandler(&uc)
+
+	// 1. Payload que no es JSON valido
+	badBody := strings.NewReader("{invalid-json") // body que no se puede decodificar
+	req := httptest.NewRequest(http.MethodPost, "/pedidos", badBody)
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	h(rr, req)
+
+	// 2. Debe responder 400
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("status = %d; want %d", rr.Code, http.StatusBadRequest)
+	}
+
+	// 3. Mensaje de error generico en el body
+	if !strings.Contains(rr.Body.String(), "formato") && !strings.Contains(rr.Body.String(), "error") {
+		t.Errorf("body = %q; want error message", rr.Body.String())
+	}
+}
+
+func TestCrearPedidoHandler_BadRequest_LogicalError(t *testing.T) {
+	repo := persistence.NewPedidoRepoMemoria()
+	uc := usecase.CrearPedidoUseCase{Repo: repo}
+	h := CrearPedidoHandler(&uc)
+
+	// 1. Payload valido como JSON pero con monto no permitido (<0)
+	payload := usecase.CrearPedidoInput{
+		Cliente: "Test", Monto: -10, Moneda: "USD",
+	}
+	buf := new(bytes.Buffer)
+	json.NewEncoder(buf).Encode(payload)
+
+	req := httptest.NewRequest(http.MethodPost, "/pedidos", buf)
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	h(rr, req)
+
+	// 2. Debe responder 400
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("status = %d; want %d", rr.Code, http.StatusBadRequest)
+	}
+	
+	// 3. Contenido del error debe mencionar la regla de negocio
+	if !strings.Contains(rr.Body.String(), "monto") {
+		t.Errorf("body = %q; want mention of monto error", rr.Body.String())
+	}
+}
