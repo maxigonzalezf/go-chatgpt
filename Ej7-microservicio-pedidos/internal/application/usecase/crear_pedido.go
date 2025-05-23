@@ -29,14 +29,18 @@ func (uc *CrearPedidoUseCase) Ejecutar(in dto.CrearPedidoInput) (dto.CrearPedido
 		ID: id,
 		Total: total,
 	}
-	// 4. Repo.Save(pedido)
+	// 4. Repo.Save(pedido) -> persistencia a traves del puerto de salida
 	if err := uc.Repo.Save(p); err != nil {
 		return dto.CrearPedidoOutput{}, err
 	}
-	// 5. Devolver output (DTO de salida)
+	// 5. Devolver output (creacion DTO de salida)
 	out := dto.CrearPedidoOutput {
 		ID: p.ID,
 		Total: p.Total,
 	}
 	return out, nil
 }
+
+// Separacion de responsabilidades: la logica de negocio esta aca, aislada de HTTP y de la infraestructura
+// Dependency Inversion: el caso de uso solo conoce la abstraccion PedidoRepository
+// Value Object: Dinero modela cantidad y moneda, con reglas propias (si se agrega Sumar, EsMismaMoneda, etc)

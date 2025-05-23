@@ -9,13 +9,15 @@ import (
 )
 
 type PedidoRepoMemoria struct {
-	mu sync.Mutex
-	datos map[string]domain.Pedido
+	mu sync.Mutex // para la concurrencia
+	datos map[string]domain.Pedido // para guardar pedidos
 }
 
 func NewPedidoRepoMemoria() *PedidoRepoMemoria {
 	return &PedidoRepoMemoria{datos: make(map[string]domain.Pedido)}
 }
+
+// Implementacion de los metodos de la interface (guardan y recuperan desde el map)
 
 func (r *PedidoRepoMemoria) Save(p domain.Pedido) error {
 	r.mu.Lock()
@@ -37,3 +39,6 @@ func (r *PedidoRepoMemoria) FindByID(id string) (domain.Pedido, error) {
 
 	return p, nil
 }
+
+// Adaptadores: un adaptador concreto que satisface el puerto
+// Test doubles: este repo se usa tanto en produccion como en test de integracion

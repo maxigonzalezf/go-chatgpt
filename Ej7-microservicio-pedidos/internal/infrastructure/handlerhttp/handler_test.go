@@ -2,6 +2,7 @@ package handlerhttp
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -14,9 +15,29 @@ import (
 	"github.com/maxigonzalezf/go-chatgpt/Ej7-microservicio-pedidos/internal/infrastructure/persistence"
 )
 
+var testDSN = "host=localhost port=5432 user=postgres password=secret dbname=pedidos_test sslmode=disable"
+
+// Funcion auxiliar para tests.
+// Se conecta a la BDD de produccion, devuelve una implementacion real del repo para testear la app de manera controlada
+// Limpia la bdd antes de cada test
+func setupSQLRepo(t *testing.T) *persistence.PedidoRepoSQL {
+	db, err := sql.Open("postgres", testDSN)
+	if err != nil {
+		t.Fatalf("no pude abrir BD: %v", err)
+	}
+	// Limpieza previa
+	if _, err := db.Exec("TRUNCATE pedidos"); err != nil {
+		t.Fatalf("error limpiando la tabla pedidos: %v", err)
+	}
+	return persistence.NewPedidoRepoSQL(db)
+}
+
+
+// 201, JSON con ID y Total
 func TestCrearPedidoHandler_Success(t *testing.T) {
 	// 1. Prepara repo y usecase
-	repo := persistence.NewPedidoRepoMemoria()
+	// repo := persistence.NewPedidoRepoMemoria() // repo en memoria
+	repo := setupSQLRepo(t) // repo DB SQL
 	uc := usecase.CrearPedidoUseCase{Repo: repo}
 	h := CrearPedidoHandler(&uc) // inyectamos el repo en CrearPedidoUseCase
 
@@ -94,8 +115,10 @@ Chequeo de persistencia
 Con esto cubrís un test de integración ligero que valida todo el flujo desde HTTP hasta dominio y repo en memoria.
 */
 
+// Invalid JSON, 400, mensaje de formato
 func TestCrearPedidoHandler_BadRequest_InvalidJSON(t *testing.T) {
-	repo := persistence.NewPedidoRepoMemoria()
+	// repo := persistence.NewPedidoRepoMemoria() // repo en memoria
+	repo := setupSQLRepo(t) // repo DB SQL
 	uc := usecase.CrearPedidoUseCase{Repo: repo}
 	h := CrearPedidoHandler(&uc)
 
@@ -118,8 +141,10 @@ func TestCrearPedidoHandler_BadRequest_InvalidJSON(t *testing.T) {
 	}
 }
 
+// Business error, monto negativo -> 400, mensaje de dominio
 func TestCrearPedidoHandler_BadRequest_LogicalError(t *testing.T) {
-	repo := persistence.NewPedidoRepoMemoria()
+	// repo := persistence.NewPedidoRepoMemoria() // repo en memoria
+	repo := setupSQLRepo(t) // repo DB SQL
 	uc := usecase.CrearPedidoUseCase{Repo: repo}
 	h := CrearPedidoHandler(&uc)
 
@@ -140,9 +165,13 @@ func TestCrearPedidoHandler_BadRequest_LogicalError(t *testing.T) {
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("status = %d; want %d", rr.Code, http.StatusBadRequest)
 	}
-	
+
 	// 3. Contenido del error debe mencionar la regla de negocio
 	if !strings.Contains(rr.Body.String(), "monto") {
 		t.Errorf("body = %q; want mention of monto error", rr.Body.String())
 	}
 }
+
+// Table-driven tests para multiples escenarios
+// Capturar y verificar stdout (en su caso)
+// Separacion de pruebas: tests puramente del dominio vs tests de integracion ligera HTTP
