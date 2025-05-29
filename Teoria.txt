@@ -427,7 +427,7 @@
         /internal/
             /application/   <- casos de uso (interactors)
         /domain/            <- entidades, V.O., interfaces (ports)
-        /infrastructure/    <- adaptadores externos (DB, mensajersia)
+        /infrastructure/    <- adaptadores externos (DB, mensajeria)
         /interfaces/        <- adaptadores de entrada (HTTP handlers, CLI)
         /pkg/               <- (opcional) librerias exportables
 

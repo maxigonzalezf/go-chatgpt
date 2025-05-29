@@ -12,6 +12,7 @@ import (
 
 	"github.com/maxigonzalezf/go-chatgpt/Ej7-microservicio-pedidos/internal/application/dto"
 	"github.com/maxigonzalezf/go-chatgpt/Ej7-microservicio-pedidos/internal/application/usecase"
+	"github.com/maxigonzalezf/go-chatgpt/Ej7-microservicio-pedidos/internal/domain"
 	"github.com/maxigonzalezf/go-chatgpt/Ej7-microservicio-pedidos/internal/infrastructure/persistence"
 )
 
@@ -31,7 +32,6 @@ func setupSQLRepo(t *testing.T) *persistence.PedidoRepoSQL {
 	}
 	return persistence.NewPedidoRepoSQL(db)
 }
-
 
 // 201, JSON con ID y Total
 func TestCrearPedidoHandler_Success(t *testing.T) {
@@ -175,3 +175,62 @@ func TestCrearPedidoHandler_BadRequest_LogicalError(t *testing.T) {
 // Table-driven tests para multiples escenarios
 // Capturar y verificar stdout (en su caso)
 // Separacion de pruebas: tests puramente del dominio vs tests de integracion ligera HTTP
+
+func TestObtenerPedidoHandler_SQL_Success(t *testing.T) {
+	repo := setupSQLRepo(t)
+	obtenerUC := usecase.ObtenerPedidoUseCase{Repo: repo}
+
+	// Guardamos un pedido en la base de datos
+	id := "sql123"
+	pedido := domain.Pedido{
+		ID: id,
+		Total: domain.Dinero{
+			Moneda:   "USD",
+			Cantidad: 200,
+		},
+	}
+	if err := repo.Save(pedido); err != nil {
+		t.Fatalf("error guardando pedido en SQL: %v", err)
+	}
+
+	// Creamos un request a /pedidos/sql123
+	req := httptest.NewRequest(http.MethodGet, "/pedidos/"+id, nil)
+	rr := httptest.NewRecorder()
+
+	// Usamos el subrouter como handler
+	handler := PedidosSubrouter(&obtenerUC, nil, nil)
+	handler(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d; want %d", rr.Code, http.StatusOK)
+	}
+
+	var out dto.CrearPedidoOutput
+	if err := json.NewDecoder(rr.Body).Decode(&out); err != nil {
+		t.Fatalf("error decoding response: %v", err)
+	}
+	if out.ID != id || out.Total.Moneda != "USD" || out.Total.Cantidad != 200 {
+		t.Errorf("respuesta inesperada: %+v", out)
+	}
+}
+
+
+func TestObtenerPedidoHandler_NotFound(t *testing.T) {
+	repo := setupSQLRepo(t)
+	obtenerUC := usecase.ObtenerPedidoUseCase{Repo: repo}
+	handler := PedidosSubrouter(&obtenerUC, nil, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/pedidos/no-existe", nil)
+	rr := httptest.NewRecorder()
+
+	handler(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Errorf("status = %d; want %d", rr.Code, http.StatusNotFound)
+	}
+
+	if !strings.Contains(rr.Body.String(), "no encontrado") {
+		t.Errorf("mensaje = %q; esperaba error", rr.Body.String())
+	}
+}
+

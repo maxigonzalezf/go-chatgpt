@@ -18,6 +18,10 @@ type RepoFake struct {
 
 func (r *RepoFake) Save(p domain.Pedido) error {
 	r.Saved = p
+	if r.datos == nil {
+		r.datos = make(map[string]domain.Pedido)
+	}
+	r.datos[p.ID] = p
 	return r.Err
 }
 

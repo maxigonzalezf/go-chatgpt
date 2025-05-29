@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/maxigonzalezf/go-chatgpt/Ej7-microservicio-pedidos/internal/application/usecase"
+	"github.com/maxigonzalezf/go-chatgpt/Ej7-microservicio-pedidos/internal/domain"
 	"github.com/maxigonzalezf/go-chatgpt/Ej7-microservicio-pedidos/internal/infrastructure/handlerhttp"
 	"github.com/maxigonzalezf/go-chatgpt/Ej7-microservicio-pedidos/internal/infrastructure/persistence"
 )
@@ -42,12 +43,32 @@ func main() {
 	// 3. Crear adaptador SQL en lugar de memoria
 	repoSQL := persistence.NewPedidoRepoSQL(db)
 
+	// AGREGAMOS UN PEDIDO HARDCODEADO PARA PRUEBA
+	pedido := domain.Pedido{
+		ID: "abc123",
+		Total: domain.Dinero{
+			Moneda:   "USD",
+			Cantidad: 99.99,
+		},
+	}
+	if err := repoSQL.Save(pedido); err != nil {
+		log.Fatal("no se pudo guardar pedido de prueba:", err)
+	}
+
 	// 4. Inyectar en el caso de uso
-	uc := usecase.CrearPedidoUseCase{Repo: repoSQL}
+	crearUc := usecase.CrearPedidoUseCase{Repo: repoSQL}
+	obtenerUc := usecase.ObtenerPedidoUseCase{Repo: repoSQL}
+	agregarLineaUc := usecase.AgregarLineaUseCase{Repo: repoSQL}
+	obtenerLineasUc := usecase.ObtenerLineasUseCase{Repo: repoSQL}
 
 	// 5. Montar handler y servidor HTTP
 	mux := http.NewServeMux()
-	mux.HandleFunc("/pedidos", handlerhttp.CrearPedidoHandler(&uc))
+	mux.HandleFunc("/pedidos", handlerhttp.CrearPedidoHandler(&crearUc))
+	mux.HandleFunc("/pedidos/", handlerhttp.PedidosSubrouter(
+	&obtenerUc,
+	&agregarLineaUc,
+	&obtenerLineasUc,
+))
 
 	log.Println("Servidor escuchando en :8080")
 	log.Fatal(http.ListenAndServe(":8080", mux))
