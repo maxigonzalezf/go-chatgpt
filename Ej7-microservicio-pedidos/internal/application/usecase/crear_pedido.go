@@ -11,6 +11,7 @@ import (
 
 type CrearPedidoUseCase struct {
 	Repo domain.PedidoRepository
+	PedidosChan chan<- string // canal inyectado desde main
 }
 
 func (uc *CrearPedidoUseCase) Ejecutar(in dto.CrearPedidoInput) (dto.CrearPedidoOutput, error) {
@@ -33,11 +34,16 @@ func (uc *CrearPedidoUseCase) Ejecutar(in dto.CrearPedidoInput) (dto.CrearPedido
 	if err := uc.Repo.Save(p); err != nil {
 		return dto.CrearPedidoOutput{}, err
 	}
-	// 5. Devolver output (creacion DTO de salida)
+	
+	// 5. Enviar el ID al canal para procesamiento en background
+	uc.PedidosChan <- p.ID
+
+	// 6. Construir y devolver output (creacion DTO de salida)
 	out := dto.CrearPedidoOutput {
 		ID: p.ID,
 		Total: p.Total,
 	}
+
 	return out, nil
 }
 

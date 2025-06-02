@@ -436,3 +436,82 @@
         - FACIL TESTING: el dominio y casos de uso se prueban aisladamente con mocks
         - LEGIBILIDAD: la organizacion refleja el flujo y limites claros
         - SUSTITUCION DE IMPLEMENTACIONES: cambiar de MySQL a Mongo por ej., solo implica nuevos adaptadores
+
+8 MIDDLEWARES
+    Funcion que envuelve al handler principal para ejecutar logica antes o despues de la peticion
+        (logging, auth, CORS, panic recovers, headers validation) 
+    
+        type Middleware func(http.Handler) http.Handler
+            recibe el handler principal y devuelve otro que primero hace algo, luego llama al handler "wrapped"
+        
+    Cuando llega una peticion, primero pasa por el middleware, que puede:
+        - leer o modificar 'r' (la Request) (p ej. checkear token en Authorization)
+        - registrar algo en el log
+        - decidir no llamar al handler y responder directamente (p ej. si no esta autorizado)
+        - pasar la peticion al siguiente middleware o al handler final
+    
+    EJEMPLO MIDDLEWARE DE LOGGING
+        Obj: antes de cada peticion, imprimir en consola metodo y ruta, y medir tiempo de procesamiento
+
+        1. Creamos middleware que recibe http.Handler y devuelve otro:
+            func LoggingMiddleware(next http.Handler) http.Handler {
+                return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+                    start := time.Now()
+                    log.Printf("Inicio: %s %s", r.Method, r.URL.Path)
+
+                    // Llamamos al handler real
+                    next.ServeHTTP(w, r) // ejecuta el handler que envuelve este middleware
+
+                    duration := time.Since(start)
+                    log.Printf("Fin: %s %s (duración: %s)", r.Method, r.URL.Path, duration)
+                })
+            }
+
+            Toda logica antes de 'next' corre antes del handler; toda logica despues de 'next' corre al terminar el handler
+
+        2. Aplicacion en main.go
+
+            crearHandler := CrearPedidoHandler(%crearUc)
+
+            loggedCrear := LoggingMiddleware(http.HandlerFunc(crearHandler))
+            mux.Handle("/pedidos", loggedCrear)
+                - Si usamos HandleFunc, convertimos a http.HandlerFunc para ajustarlo a Middleware
+                - Ahora, cada vez que se llama a '/pedidos', primero corre el logger, luego el handler
+
+9. CHANNELS
+    'chan T' -> estructura segura para pasar valores de tipo T entre goroutines
+    Permite sincronizar sin locks manuales: cuando una goroutine hace 'ch <- valor', espera hasta que otro goroutine reciba
+    ese valor (<- ch), a menos que sea un canal "buffered"
+
+    9.1 TIPOS DE CHANNELS
+        - No buffered: 'ch := make(chan string)' -> el envio bloquea hasta que alguien reciba
+        - Buffered: 'ch := make(chan string, 5)' -> puede almacenar hasta 5 valores sin bloquear al sender
+        - Canales de solo lectura: 'chan<- string' -> solo envia
+        - Canales de solo escritura: '<-chan string' -> solo recibe
+    
+    9.2 PATRON PRODUCER/CONSUMER
+        - Una goroutine envia tareas a un canal (producer)
+        - Varios goroutines (workers) reciben del canal y procesan (consumer)
+        - Ej: log de pedidos para procesar facturas en segundo plano
+    
+    9.3 EJEMPLO: PIPELINE DE PEDIDOS
+        1. Definimos un canal global (package main):
+            var pedidosChan = make(chan string)
+        
+        2. Worker que procesa del canal:
+            func iniciarWorker() {
+                go func() {
+                    for id := range pedidosChan {
+                        // Simular procesamiento (e.g., enviar email)
+                        log.Printf("Procesando pedido en background: %s", id)
+                        time.Sleep(500 * time.Millisecond)
+                    }
+                }()
+            }
+        
+        3. En el main(), antes de levantar servidor:
+                iniciarWorker() -> ya tenemos un goroutine escuchando en pedidosChan
+        
+        4. useCase de crearPedido, despues de guardar al repo:
+                // suponiendo que out.ID es el ID generado
+                pedidosChan <- out.ID // esto envia el ID al canal, el worker lo recibira y hara el log con un retardo simulado

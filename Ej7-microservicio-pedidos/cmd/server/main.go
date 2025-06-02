@@ -5,12 +5,38 @@ import (
 	"database/sql"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/maxigonzalezf/go-chatgpt/Ej7-microservicio-pedidos/internal/application/usecase"
 	"github.com/maxigonzalezf/go-chatgpt/Ej7-microservicio-pedidos/internal/domain"
 	"github.com/maxigonzalezf/go-chatgpt/Ej7-microservicio-pedidos/internal/infrastructure/handlerhttp"
 	"github.com/maxigonzalezf/go-chatgpt/Ej7-microservicio-pedidos/internal/infrastructure/persistence"
 )
+
+var pedidosChan = make(chan string)
+
+func iniciarWorker() {
+    go func() {
+        for id := range pedidosChan {
+            log.Printf("Worker: procesando pedido %s", id)
+            // Podés simular enviar un email u otra tarea
+            time.Sleep(1 * time.Second)
+            log.Printf("Worker: finalizó pedido %s", id)
+        }
+    }()
+}
+
+func LoggingMiddleware(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        start := time.Now()
+        log.Printf("Inicio: %s %s", r.Method, r.URL.Path)
+
+        next.ServeHTTP(w, r)
+
+        log.Printf("Fin: %s %s (duración: %s)", r.Method, r.URL.Path, time.Since(start))
+    })
+}
+
 
 // El main orquesta, pero no contiene logica de negocio
 // Solo se configura el HTTP server y se enlaza con el caso de uso
@@ -56,20 +82,25 @@ func main() {
 	}
 
 	// 4. Inyectar en el caso de uso
-	crearUc := usecase.CrearPedidoUseCase{Repo: repoSQL}
+	crearUc := usecase.CrearPedidoUseCase{Repo: repoSQL, 
+										  PedidosChan: pedidosChan,
+										}
 	obtenerUc := usecase.ObtenerPedidoUseCase{Repo: repoSQL}
 	agregarLineaUc := usecase.AgregarLineaUseCase{Repo: repoSQL}
 	obtenerLineasUc := usecase.ObtenerLineasUseCase{Repo: repoSQL}
 
 	// 5. Montar handler y servidor HTTP
 	mux := http.NewServeMux()
-	mux.HandleFunc("/pedidos", handlerhttp.CrearPedidoHandler(&crearUc))
+	crearHandler := http.HandlerFunc(handlerhttp.CrearPedidoHandler(&crearUc))
+	mux.Handle("/pedidos", LoggingMiddleware(crearHandler))
+	//mux.HandleFunc("/pedidos", handlerhttp.CrearPedidoHandler(&crearUc))
 	mux.HandleFunc("/pedidos/", handlerhttp.PedidosSubrouter(
 	&obtenerUc,
 	&agregarLineaUc,
 	&obtenerLineasUc,
 ))
 
+	iniciarWorker()
 	log.Println("Servidor escuchando en :8080")
 	log.Fatal(http.ListenAndServe(":8080", mux))
 }
